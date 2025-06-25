@@ -14,3 +14,5 @@ reports
 **/test
 venv3/
 **/.idea/
+output/
+pydvs.egg-info/

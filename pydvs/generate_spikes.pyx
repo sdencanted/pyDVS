@@ -78,13 +78,46 @@ def thresholded_difference(np.ndarray[DTYPE_t, ndim=2] curr_frame,
   return diff, abs_diff, spikes
 
 
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+def thresholded_difference_kronecker(np.ndarray[DTYPE_t, ndim=2] curr_frame,
+                           np.ndarray[DTYPE_t, ndim=2] ref_frame,
+                           DTYPE_t threshold):
+  """
+    :param curr_frame: Latest image captured by the camera
+    :param ref_frame:  Saves value when the pixel was marked as "spiking"
+    :param threshold:  How big the difference between current and reference
+                       frames needs to be to mark a pixel as spiking
+
+    :return diff:     Signed difference between current and reference frames
+    :return abs_diff: Absolute value of the difference
+    :return spikes:   Signed pixels marked as spiking (-1 means change from higher
+                      to lower brightness value, 1 means change from lower to
+                      higher brightness value.)
+  """
+  cdef np.ndarray[DTYPE_t, ndim=2] diff, abs_diff, spikes
+  cdef np.ndarray[DTYPE_IDX_t, ndim=1] neg_r, neg_c
+
+  diff = curr_frame - ref_frame
+  abs_diff = np.abs(diff)
+
+  spikes = (abs_diff > threshold).astype(DTYPE)
+
+  abs_diff = (abs_diff*spikes)
+
+  neg_r, neg_c = np.where(diff < -threshold)
+  spikes[neg_r, neg_c] = 1
+
+
+  return diff, abs_diff, (spikes*255).astype(np.uint8)
+
+
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 def thresholded_difference_adpt(np.ndarray[DTYPE_t, ndim=2] curr_frame,
                                 np.ndarray[DTYPE_t, ndim=2] ref_frame,
                                 np.ndarray[DTYPE_t, ndim=2] threshold,
-                                DTYPE_t min_threshold,
-                                DTYPE_t max_threshold):
+                                DTYPE_t min_threshold=0,
+                                DTYPE_t max_threshold=0):
   """
     :param curr_frame: Latest image captured by the camera
     :param ref_frame:  Saves value when the pixel was marked as "spiking"
@@ -111,6 +144,40 @@ def thresholded_difference_adpt(np.ndarray[DTYPE_t, ndim=2] curr_frame,
   spikes[neg_r, neg_c] = -1
 
   return diff, abs_diff, spikes
+
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+def thresholded_difference_adpt_kronecker(np.ndarray[DTYPE_t, ndim=2] curr_frame,
+                                np.ndarray[DTYPE_t, ndim=2] ref_frame,
+                                np.ndarray[DTYPE_t, ndim=2] threshold,
+                                DTYPE_t min_threshold=0,
+                                DTYPE_t max_threshold=0):
+  """
+    :param curr_frame: Latest image captured by the camera
+    :param ref_frame:  Saves value when the pixel was marked as "spiking"
+    :param threshold:  How big the difference between current and reference
+                       frames needs to be to mark a pixel as spiking. Adjusted
+                       dynamically.
+
+    :return diff:     Signed difference between current and reference frames
+    :return abs_diff: Absolute value of the difference
+    :return spikes:   Signed pixels marked as spiking (-1 means change from higher
+                      to lower brightness value, 1 means change from lower to
+                      higher brightness value.)
+  """
+  cdef np.ndarray[DTYPE_t, ndim=2] diff, abs_diff, spikes
+  cdef np.ndarray[DTYPE_IDX_t, ndim=1] neg_r, neg_c
+
+  diff = curr_frame - ref_frame
+  abs_diff = np.abs(diff)
+
+
+  spikes = (abs_diff > threshold).astype(DTYPE)
+  abs_diff = (abs_diff*spikes)
+  neg_r, neg_c = np.where(diff < -threshold)
+  spikes[neg_r, neg_c] = 1
+
+  return diff, abs_diff, (spikes*255).astype(np.uint8)
+
 
 
 

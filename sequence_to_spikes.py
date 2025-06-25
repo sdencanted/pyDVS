@@ -11,9 +11,9 @@ import sys
 import os
 import glob
 
-if len(sys.argv) != 6:
+if len(sys.argv) != 7:
     print("Usage:")
-    print("\tpython sequence_to_spikes.py images_dir output_dir  width height frames_per_second\n\n")
+    print("\tpython sequence_to_spikes.py images_dir output_dir  width height frames_per_second use_adaptive_threshold\n\n")
     
     sys.exit(0)
 
@@ -246,11 +246,15 @@ cx = 0
 cy = 0
 bg_gray = 0
 filename = ""
-fade_mask = cv2.imread("./pyDVS/fading_mask.png", cv2.IMREAD_GRAYSCALE)
+fade_mask = cv2.imread("./pydvs/fading_mask.png", cv2.IMREAD_GRAYSCALE)
 fade_mask = cv2.resize(fade_mask, (cam_w, cam_w))
 fade_mask = np.float64(fade_mask/(255.))
 ref[:] = ref_start
 
+use_adaptive_threshold=bool(sys.argv[6])
+if use_adaptive_threshold:
+    thresh_matrix = np.zeros((cam_h, cam_w),
+                                        dtype=int16)
 for img_idx in range(num_images):
     print(img_idx)
     filename = image_paths[img_idx]
@@ -260,14 +264,16 @@ for img_idx in range(num_images):
     curr = padd_img
 
 #     curr *= fade_mask
-    
-    diff[:], abs_diff[:], spikes[:] = gs.thresholded_difference(curr, ref, thresh)
+    if use_adaptive_threshold:
+        diff[:], abs_diff[:], spikes[:] = gs.thresholded_difference_adpt(curr, ref, thresh_matrix)
+    else:
+        diff[:], abs_diff[:], spikes[:] = gs.thresholded_difference(curr, ref, thresh)
     
     if is_inh_on:
         spikes[:] = gs.local_inhibition(spikes, abs_diff, inh_coords, 
                                      cam_w, cam_h, inh_width)
 
-
+    # accumulated image 
     ref[:] = update_ref(output_type, abs_diff, spikes, ref, thresh, frame_time_ms, \
                         num_bins, history_weight, log2_table)
 
@@ -283,6 +289,9 @@ for img_idx in range(num_images):
 
     spk_img[:] = gs.render_frame(spikes, curr, cam_w, cam_h, polarity)
     cv2.imshow("fig", spk_img)
+    cv2.imshow("ref", ref)
+    kronecker_img=(np.abs(spikes)*255).astype(np.uint8)
+    cv2.imshow("kronecker", kronecker_img)
     key = cv2.waitKey(10) & 0xFF
     if key == ord('q') or key == ord('Q'):
       break
